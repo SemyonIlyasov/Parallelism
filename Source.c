@@ -76,6 +76,7 @@ void two_dim_prog() {
                     err = fmax(err, u_n[i][j] - u[i][j]);
                 }
             }
+        }
 #pragma acc parallel
             {
 #pragma acc loop independent
@@ -84,7 +85,6 @@ void two_dim_prog() {
                     for (int j = 1; j < n - 1; j++)
                         u[i][j] = u_n[i][j];
             }
-        }
         printf("%d\n", it);
         it++;
     }
