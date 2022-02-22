@@ -39,7 +39,7 @@ void one_dim_prog() {
 }
 
 void two_dim_prog() {
-
+     
     double u[n][n] = {0};
     double u_n[n][n] = {0};
     u[0][0] = 10;
@@ -48,7 +48,7 @@ void two_dim_prog() {
     u[n - 1][n - 1] = 30;
 
     double up = (double)(u[n - 1][0] - u[0][0]) / (n-1);
-    double left = (double)(u[0][n - 1] - u[0][0]) / (n-1);
+    double left = (double)(u[n-1][0] - u[0][0]) / (n-1);
     double right = (double)(u[n - 1][n - 1] - u[n - 1][0]) /(n-1);
     double down = (double)(u[n - 1][n - 1] - u[0][n - 1]) / (n-1);
 
@@ -58,42 +58,40 @@ void two_dim_prog() {
         u[i][0] = u[i - 1][0] + left;
         u[i][n - 1] = u[i - 1][n - 1] + right;
     }
-    int flag = 1;
-    double x_max = 1.0;
-    double h = x_max / (double)n;
-    double a = 1.0;
-    double tau = 30 * a / (n * n * n);
+
     int it = 0;
-    double localmax = 0;
+    double err = 1;
+    #pragma acc data copy(u) create(u_n)
+    while (err > 1e-6 && it < 100000) {
 
-    while (flag == 1) {
-        flag = 0;
-        localmax = 0;
-        for (int i = 1; i < n - 1; i++) {
-            for (int j = 1; j < n - 1; j++) {
-                u_n[i][j] = u[i][j] + tau * a * (u[i][j - 1] - 4 * u[i][j] + u[i][j + 1] + u[i + 1][j] + u[i - 1][j]) / (h * h);
-                double delta = fabs(u[i][j] - u_n[i][j]);
-                if (delta > 1e-6) {
-                    flag = 1;
-                    if (localmax < delta)
-                        localmax = delta;
+        err = 0;
+        #pragma acc data present(u,u_n)
+        #pragma acc parallel reduction(max:err)
+        {
+#pragma acc loop independent
+            for (int i = 1; i < n - 1; i++) {
+#pragma acc loop independent
+                for (int j = 1; j < n - 1; j++) {
+                    u_n[i][j] = 0.25 * (u[i][j - 1] + u[i][j + 1] + u[i + 1][j] + u[i - 1][j]);
+                    err = fmax(err, u_n[i][j] - u[i][j]);
                 }
-                   
-                
             }
-            for (int i = 1; i < n - 1; i++)
-                for (int j = 0; j < n - 1; j++)
-                    u[i][j] = u_n[i][j];
-
+#pragma acc parallel
+            {
+#pragma acc loop independent
+                for (int i = 1; i < n - 1; i++)
+#pragma acc loop independent
+                    for (int j = 1; j < n - 1; j++)
+                        u[i][j] = u_n[i][j];
+            }
         }
-        printf("%d %e\n", it, localmax);
+        printf("%d\n", it);
         it++;
     }
 
-
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++)
-            printf("%e ", u[i][j]);
+            printf("%f ", u[i][j]);
         printf("\n");
     }
     printf("iterations: %d", it);
