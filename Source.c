@@ -61,12 +61,12 @@ void two_dim_prog() {
 
     int it = 0;
     double err = 1;
-    #pragma acc data copy(u) create(u_n)
+    #pragma acc data copy(u) copy(u_n)
     while (err > 1e-6 && it < 100000) {
 
         err = 0;
-        #pragma acc data present(u,u_n)
-        #pragma acc parallel reduction(max:err)
+#pragma acc data present(u,u_n)
+#pragma acc parallel reduction(max:err)
         {
 #pragma acc loop independent
             for (int i = 1; i < n - 1; i++) {
@@ -84,16 +84,18 @@ void two_dim_prog() {
 #pragma acc loop independent
                     for (int j = 1; j < n - 1; j++)
                         u[i][j] = u_n[i][j];
-            }
+	}
         printf("%d\n", it);
         it++;
     }
 
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++)
-            printf("%f ", u[i][j]);
-        printf("\n");
-    }
+
+
+  for (int i = 0; i < n; i++) {
+       	for (int j = 0; j < n; j++)
+            	printf("%f ", u[i][j]);
+     	   printf("\n");
+  }
     printf("iterations: %d", it);
 }
 
