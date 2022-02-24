@@ -1,42 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#define n 128
-
-void one_dim_prog() {
-    double u[n], up[n];
-    u[0] = 0.0;  
-    for (int i = 1; i < n - 1; i++) {
-        u[i] = 0.0;
-    }
-    u[n - 1] = 1.0;
-    up[0] = 0.0;
-    up[n - 1] = 1.0;
-    double x_max = 1.0;
-    double h = x_max / (double)n;
-    double a = 1.0;
-    double tau = a / (n * n * n);
-
-
-    int it_num = 0;
-    int flag = 1;
-    while (flag == 1) {
-        flag = 0;
-        for (int i = 1; i < n - 1; i++) {
-            up[i] = u[i] + tau * a * (u[i - 1] - 2 * u[i] + u[i + 1]) / (h * h);
-            if (fabs(u[i] - up[i]) > 1e-6)
-                flag = 1;
-        }
-        for (int i = 1; i < n - 1; i++) {
-            u[i] = up[i];
-        }
-        it_num++;
-    }
-    for (int i = 0; i < n; i++)
-        printf("%e\n", u[i]);
-    printf("number of iterations: %d", it_num);
-
-}
+#define n 512
 
 void two_dim_prog() {
      
@@ -62,11 +27,11 @@ void two_dim_prog() {
     int it = 0;
     double err = 1;
     #pragma acc data copy(u) copy(u_n)
-    while (err > 1e-6 && it < 100000) {
+    while (err > 1e-6 && it < 1000000) {
 
         err = 0;
 #pragma acc data present(u,u_n)
-#pragma acc parallel reduction(max:err)
+#pragma acc parallel collapse(2) reduction(max:err)
         {
 #pragma acc loop independent
             for (int i = 1; i < n - 1; i++) {
@@ -93,13 +58,13 @@ void two_dim_prog() {
 
   for (int i = 0; i < n; i++) {
        	for (int j = 0; j < n; j++)
-            	printf("%f ", u[i][j]);
+            	printf("%e ", u[i][j]);
      	   printf("\n");
   }
     printf("iterations: %d", it);
 }
 
-int main() {
+int main(int argc, char** argv) {
 
     two_dim_prog();
     return 0;
