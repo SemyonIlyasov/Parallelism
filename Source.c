@@ -40,7 +40,7 @@ int main() {
 
 #pragma acc data copy(u[0:N][0:N], err) create (u_n[0:N][0:N]) 
     {
-        while (err > 1e-6 && iter < 1e+6) {
+        while (err > 1e-6 && iter < 101) {
 
             iter++;
             if (iter % 100 == 0) {
