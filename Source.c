@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include<math.h>
 #include <malloc.h>
-#define  N 128
+#define  N 256
 
 int main() {
     double** u = (double**)calloc(N, sizeof(double*));
@@ -47,7 +47,7 @@ int main() {
 #pragma acc kernels async
                 err = 0;
             }
-#pragma acc data present(u, du)
+#pragma acc data present(u, u_n)
 #pragma acc parallel num_gangs(128) async
             {
                 if (iter % 100 == 0) {
