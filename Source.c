@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
-#define n 512
+#define n 1024
 
 void two_dim_prog() {
      
@@ -26,7 +26,7 @@ void two_dim_prog() {
 
     int it = 0;
     double err = 1;
-    #pragma acc data copy(u) copy(u_n)
+#pragma acc data copy(u) copy(u_n)
     while (err > 1e-6 && it < 1000000) {
 
         err = 0;
@@ -50,18 +50,18 @@ void two_dim_prog() {
                     for (int j = 1; j < n - 1; j++)
                         u[i][j] = u_n[i][j];
 	}
-        printf("%d\n", it);
+	//        printf("%d\n", it);
         it++;
     }
 
 
 
-  for (int i = 0; i < n; i++) {
-       	for (int j = 0; j < n; j++)
-            	printf("%e ", u[i][j]);
-     	   printf("\n");
-  }
-    printf("iterations: %d", it);
+  // for (int i = 0; i < n; i++) {
+     //  	for (int j = 0; j < n; j++)
+   //         	printf("%e ", u[i][j]);
+     	  // printf("\n");
+ // }
+//    printf("iterations: %d", it);
 }
 
 int main(int argc, char** argv) {
