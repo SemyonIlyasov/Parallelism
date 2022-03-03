@@ -26,7 +26,7 @@ int main() {
     int iter = 0;
     double err = 1;
 
-
+#pragma acc kernels
 {
     for (int i = 1; i < N - 1; i++) {
         u[i][0] = 10 + step * i;
@@ -40,19 +40,21 @@ int main() {
     }
 }
 #pragma acc data copy(u[0:N][0:N], err) create (u_n[0:N][0:N]) 
-
-        while (err > 1e-6 && iter < 101) {
+    {
+        while (err > 1e-6 && iter < 1e+6) {
             iter++;
-if (iter % 100 == 0)
-{
-#pragma acc kernels async
-err = 0;
-}
+	if (iter % 100 == 0)
+	{
+	#pragma acc kernels async
+		err = 0;
+	}
 #pragma acc data present(u, u_n)
 #pragma acc parallel num_gangs(128) async
             {
-                if (iter % 100 == 0) {
-#pragma acc loop independent collapse(2) reduction(max:err) 
+//                if (iter % 100 == 0) {
+
+#pragma acc loop collapse(2) independent reduction(max:err) 
+{
                     for (int i = 1; i < N - 1; i++)
                         for (int j = 1; j < N - 1; j++) {
 
@@ -60,14 +62,17 @@ err = 0;
                             err = fmax(err, u_n[i][j] - u[i][j]);
                         }
                 }
+} 
                else {
-#pragma acc loop independent collapse(2) 
+#pragma acc loop collapse(2) 
+{
                     for (int i = 1; i < N - 1; i++)
                         for (int j = 1; j < N - 1; j++)
                             u_n[i][j] = 0.25 * (u[i + 1][j] + u[i - 1][j] + u[i][j - 1] + u[i][j + 1]);
 
                 }
             }
+}
 #pragma acc parallel loop independent collapse(2) async
             for (int i = 1; i < N - 1; i++)
                 for (int j = 1; j < N - 1; j++)
@@ -82,6 +87,7 @@ err = 0;
 
 
         }
+    }
 
 
     return 0;
