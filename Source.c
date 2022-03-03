@@ -1,71 +1,93 @@
 #include <stdio.h>
-#include <math.h>
-#include <stdlib.h>
-#define n 1024
+#include<math.h>
+#include <malloc.h>
+#define  N 128
 
-void two_dim_prog() {
-     
-    double u[n][n] = {0};
-    double u_n[n][n] = {0};
-    u[0][0] = 10;
-    u[0][n - 1] = 20;
-    u[n - 1][0] = 20;
-    u[n - 1][n - 1] = 30;
-
-    double up = (double)(u[n - 1][0] - u[0][0]) / (n-1);
-    double left = (double)(u[n-1][0] - u[0][0]) / (n-1);
-    double right = (double)(u[n - 1][n - 1] - u[n - 1][0]) /(n-1);
-    double down = (double)(u[n - 1][n - 1] - u[0][n - 1]) / (n-1);
-
-    for (int i = 1; i < n - 1; i++) {
-        u[0][i] = u[0][i - 1] + up;
-        u[n - 1][i] = u[n - 1][i - 1] + down;
-        u[i][0] = u[i - 1][0] + left;
-        u[i][n - 1] = u[i - 1][n - 1] + right;
+int main() {
+    double** u = (double**)calloc(N, sizeof(double*));
+    double** u_n = (double**)calloc(N, sizeof(double*)); 
+    for (int i = 0; i < N; i++) {
+        u[i] = (double*)calloc(N, sizeof(double));
+        u_n[i] = (double*)calloc(N, sizeof(double));
     }
 
-    int it = 0;
-    double err = 1;
-#pragma acc data copy(u) copy(u_n)
-    while (err > 1e-6 && it < 1000000) {
 
-        err = 0;
-#pragma acc data present(u,u_n)
-#pragma acc parallel collapse(2) reduction(max:err)
-        {
-#pragma acc loop independent
-            for (int i = 1; i < n - 1; i++) {
-#pragma acc loop independent
-                for (int j = 1; j < n - 1; j++) {
-                    u_n[i][j] = 0.25 * (u[i][j - 1] + u[i][j + 1] + u[i + 1][j] + u[i - 1][j]);
-                    err = fmax(err, u_n[i][j] - u[i][j]);
+    u[0][0] = 10;
+    u[N - 1][0] = 20;
+    u[0][N - 1] = 20;
+    u[N - 1][N - 1] = 30;
+
+    u_n[0][0] = 10;
+    u_n[N - 1][0] = 20;
+    u_n[0][N - 1] = 20;
+    u_n[N - 1][N - 1] = 30;
+
+    double step = 10.0 / (N - 1);
+    int iter = 0;
+    double err = 1;
+
+#pragma acc kernels
+    for (int i = 1; i < N - 1; i++) {
+        u[i][0] = 10 + step * i;
+        u[0][i] = 10 + step * i;
+        u[i][N - 1] = 20 + step * i;
+        u[N - 1][i] = 20 + step * i;
+        u_n[i][0] = 10 + step * i;
+        u_n[0][i] = 10 + step * i;
+        u_n[i][N - 1] = 20 + step * i;
+        u_n[N - 1][i] = 20 + step * i;
+    }
+
+#pragma acc data copy(u[0:N][0:N], err) create (u_n[0:N][0:N]) 
+    {
+        while (err > 1e-6 && iter < 1e+6) {
+
+            iter++;
+            if (iter % 100 == 0) {
+#pragma acc kernels async
+                err = 0;
+            }
+#pragma acc data present(u, du)
+#pragma acc parallel num_gangs(128) async
+            {
+                if (iter % 100 == 0) {
+
+#pragma acc loop collapse(2) independent reduction(max:err) 
+                    for (int i = 1; i < N - 1; i++)
+                        for (int j = 1; j < N - 1; j++) {
+
+                            u_n[i][j] = 0.25 * (u[i + 1][j] + u[i - 1][j] + u[i][j - 1] + u[i][j + 1]);
+                            err = fmax(err, u_n[i][j] - u[i][j]);
+                        }
+                }
+                else {
+#pragma acc loop collapse(2) 
+
+                    for (int i = 1; i < N - 1; i++)
+                        for (int j = 1; j < N - 1; j++)
+                            u_n[i][j] = 0.25 * (u[i + 1][j] + u[i - 1][j] + u[i][j - 1] + u[i][j + 1]);
+
                 }
             }
+#pragma acc parallel loop independent collapse(2) async
+            for (int i = 1; i < N - 1; i++)
+                for (int j = 1; j < N - 1; j++)
+                    u[i][j] = u_n[i][j];
+
+            if (iter % 100 == 0) {
+#pragma acc wait 
+#pragma acc update self(err) 
+                printf("%d %e\n", iter, err);
+            }
+
+
         }
-#pragma acc parallel
-            {
-#pragma acc loop independent
-                for (int i = 1; i < n - 1; i++)
-#pragma acc loop independent
-                    for (int j = 1; j < n - 1; j++)
-                        u[i][j] = u_n[i][j];
-	}
-	//        printf("%d\n", it);
-        it++;
     }
 
 
-
-  // for (int i = 0; i < n; i++) {
-     //  	for (int j = 0; j < n; j++)
-   //         	printf("%e ", u[i][j]);
-     	  // printf("\n");
- // }
-//    printf("iterations: %d", it);
-}
-
-int main(int argc, char** argv) {
-
-    two_dim_prog();
     return 0;
 }
+
+
+
+
