@@ -4,7 +4,7 @@
 #include <malloc.h>
 #include <math.h>
 
-#define N 1024
+#define N 128
 
 /*
     main difference between nonoptimized and optimized programs is
@@ -58,7 +58,7 @@ int main(void)
 
 #pragma acc data create(max_error)
     {
-        while (max_error > 1e-6 && iteration < 1e+6) {
+        while (max_error > 1e-6 && iteration < 10) {
 
             iteration++;
 
