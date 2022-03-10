@@ -3,7 +3,7 @@
 #include <malloc.h>
 #include <math.h>
 
-#define N 128
+#define N 1024
 
 /* algoritm:
 
