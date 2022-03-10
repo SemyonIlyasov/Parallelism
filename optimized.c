@@ -56,7 +56,7 @@ int main(void)
     }
 
 
-#pragma acc data create(err)
+#pragma acc data create(max_error)
     {
         while (max_error > 1e-6 && iteration < 1e+6) {
 
@@ -75,7 +75,7 @@ int main(void)
     // queue n, and at the end of the section, do not force synchronization;
 
                 {
-#pragma acc loop independent collapse(2) reduction(max:err)
+#pragma acc loop independent collapse(2) reduction(max:max_error)
     // independent - to assure the compiler that
     // there are no dependencies in this loop
     // and all iterations can be executed in parallel;
@@ -96,7 +96,7 @@ int main(void)
             }
             else {
 
-#pragma acc data present(A, Anew)
+#pragma acc data present(U, U_n)
 #pragma acc kernels async(1)
                 {
 #pragma acc loop independent collapse(2)
@@ -116,7 +116,7 @@ int main(void)
 #pragma acc wait(1)
     // synchronization point
 
-#pragma acc update host(err)
+#pragma acc update host(max_error)
     // update host(list) - for all variables from the list,
     // update their values in the CPU memory
     // with values on the GPU

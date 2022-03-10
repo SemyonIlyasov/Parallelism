@@ -1,12 +1,12 @@
 #include <stdlib.h>
-#include <stdio.h> 
+#include <stdio.h>
 #include <malloc.h>
 #include <math.h>
 
 #define N 128
 
 /* algoritm:
-    
+
     1. initialize arrays:
 
     U                               U_n
@@ -21,31 +21,30 @@
 
     2. fill angles
 
-    U                               
+    U
 
-    10 0 0 ... 0 0 20 
-    0 0 0 ... 0 0 0 
-    . . . . . . . . 
+    10 0 0 ... 0 0 20
+    0 0 0 ... 0 0 0
+    . . . . . . . .
     20 0 0 ... 0 0 30
 
 
     3. fill boarders
 
-    U                               
+    U
 
-    10 10.33 10.66 ... 19.33 19.66 20   
-    10.33 0 0      ... 0     0     20.33   
-    . . . . . . . .                  
+    10 10.33 10.66 ... 19.33 19.66 20
+    10.33 0 0      ... 0     0     20.33
+    . . . . . . . .
     20 20.33 20.66 ... 29.33 29.66 30
 
-    4. perform reduction until the error reaches the threshold value 
+    4. perform reduction until the error reaches the threshold value
     or the number of iterations reaches the threshold value
 
 */
 
 int main(void) {
 
-    double** copy_pointer;
     int iteration = 0;
     double max_error = 1.0;
     double delta = 10.0 / (N - 1);
@@ -85,7 +84,7 @@ int main(void) {
 
 #pragma acc kernels 
             {
-#pragma acc loop independent collapse(2) reduction(max:err)  
+#pragma acc loop independent collapse(2) reduction(max:max_error)  
                for (int i = 1; i < N - 1; i++)
                    for (int j = 1; j < N - 1; j++) {
                        U_n[i][j] = 0.25 * (U[i + 1][j] + U[i - 1][j] + U[i][j - 1] + U[i][j + 1]);
@@ -93,10 +92,10 @@ int main(void) {
                    }
             }
 
-            copy_pointer = U;
-            U = U_n;
-            U_n = copy_pointer;
-
+#pragma acc kernels
+		for(int i = 0; i < N; i++)
+			for(int j = 0; j < N; j++)
+				U[i][j] = U_n[i][j];
             if (iteration % 100 == 0)
                 printf("%d %lf\n", iteration, max_error);
         }
