@@ -7,8 +7,8 @@
 __global__ void five_point_model_calc(double* U_d, double* U_d_n, int n)
 {
 	
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	int j = blockIdx.y * blockDim.y + threadIdx.y;
+	int j = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.y * blockDim.y + threadIdx.y;
 
 	if (j < n - 1 && j > 0 && i > 0 && i < n - 1)
 		{
@@ -21,12 +21,12 @@ __global__ void five_point_model_calc(double* U_d, double* U_d_n, int n)
 		}
 }
 
-__global__ void arr_diff(double* U_d, double* U_d_n, int n)
+__global__ void arr_diff(double* U_d, double* U_d_n, double* U_d_diff, int n)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	int j = blockIdx.y * blockDim.y + threadIdx.y;
 	if(i >= 0 && i < n && j >= 0 && j < n)
-		U_d[i*n + j] = U_d_n[i*n + j] - U_d[i*n + j];
+		U_d_diff[i*n + j] = U_d_n[i*n + j] - U_d[i*n + j];
 }
 
 
@@ -39,10 +39,11 @@ double* U_n =(double*)calloc(N*N, sizeof(double));
 
 double* U_d;
 double* U_d_n;
+double* U_d_diff;
 
 cudaMalloc(&U_d, sizeof(double)*N*N);
 cudaMalloc(&U_d_n, sizeof(double)*N*N);
-
+cudaMalloc(&U_d_diff, sizeof(double)*N*N);
 double delta = 10.0 / (N - 1);
 
 for (int i = 0; i < N; i++)
@@ -62,8 +63,8 @@ for (int i = 0; i < N; i++)
 cudaMemcpy(U_d, U, N*N*sizeof(double), cudaMemcpyHostToDevice);
 cudaMemcpy(U_d_n, U_n, N*N*sizeof(double), cudaMemcpyHostToDevice);
 
-dim3 BLOCK_SIZE = dim3(128, 2);
-dim3 GRID_SIZE = dim3(ceil((N + 127)/128.),ceil((N+127)/2.));
+dim3 BLOCK_SIZE = dim3(32, 32);
+dim3 GRID_SIZE = dim3(ceil(N/32.),ceil(N/32.));
 
 int it = 0;
 int max_it = 1000000;
@@ -77,7 +78,7 @@ size_t temp_storage_bytes = 0;
 
 
 
-cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d, d_err, N*N);
+cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d_diff, d_err, N*N);
 cudaMalloc(&d_temp_storage, temp_storage_bytes);
 
 while(it < max_it && *err > 1e-6)
@@ -86,26 +87,26 @@ while(it < max_it && *err > 1e-6)
 	
 	five_point_model_calc<<<GRID_SIZE, BLOCK_SIZE>>>(U_d, U_d_n, N);
 	
-	//arr_diff<<<GRID_SIZE, BLOCK_SIZE>>>(U_d, U_d_n, N);
-	
-	//cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d, d_err, N*N);
-	
-	// cudaMemcpy(U_d, U_d_n, N*N*sizeof(double), cudaMemcpyDeviceToDevice);
 	if(it % 100 == 0)
 	{
+
 		*err = 0;
-		arr_diff<<<GRID_SIZE, BLOCK_SIZE>>>(U_d, U_d_n, N);
-		cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d, d_err, N*N);
+		arr_diff<<<GRID_SIZE, BLOCK_SIZE>>>(U_d, U_d_n, U_d_diff, N);
+		cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d_diff, d_err, N*N);
 		cudaMemcpy(err, d_err, sizeof(double), cudaMemcpyDeviceToHost);
 		printf("%d %lf\n", it,*err);
 	}
-	cudaMemcpy(U_d, U_d_n, N*N*sizeof(double), cudaMemcpyDeviceToDevice);
+	// cudaMemcpy(U_d, U_d_n, sizeof(double)*N*N, cudaMemcpyDeviceToDevice);
+	double* swap_ptr = U_d;
+	U_d = U_d_n;
+	U_d_n = swap_ptr;	
 }
 
 free(U);
 free(U_n);
 cudaFree(U_d);
 cudaFree(U_d_n);
-printf("%d %lf\n", it, *err);
+cudaFree(U_d_diff);
+printf("fin = %d %lf\n", it, *err);
 return 0;
 }
