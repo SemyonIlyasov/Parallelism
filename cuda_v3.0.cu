@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <cub/cub.cuh>
-#define N 128
-
+#define N 256
+#define MAX_ITER_NUM 1001
 __global__ void five_point_model_calc(double* U_d, double* U_d_n, int n)
 {
 	
@@ -67,7 +67,7 @@ dim3 BLOCK_SIZE = dim3(32, 32);
 dim3 GRID_SIZE = dim3(ceil(N/32.),ceil(N/32.));
 
 int it = 0;
-int max_it = 1000000;
+
 double* err = (double*)calloc(1,sizeof(double));
 *err = 1;
 double* d_err;
@@ -81,7 +81,7 @@ size_t temp_storage_bytes = 0;
 cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d_diff, d_err, N*N);
 cudaMalloc(&d_temp_storage, temp_storage_bytes);
 
-while(it < max_it && *err > 1e-6)
+while(it < MAX_ITER_NUM && *err > 1e-6)
 {
 	it++;
 	
