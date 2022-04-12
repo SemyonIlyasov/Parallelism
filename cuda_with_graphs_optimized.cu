@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <cub/cub.cuh>
-#define N 1024
+#define N 128
 #define MAX_ITER_NUM 1000000
 #define STEP 100
 __global__ void five_point_model_calc(double* U_d, double* U_d_n, int n)
