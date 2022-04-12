@@ -129,8 +129,10 @@ while(*err > 1e-6 && it < max_iters_with_graphs)
 	U_d_n = swap_ptr;
 
 
-
+	cudaStreamSynchronize(stream);
 }
+
+
 free(U);
 free(U_n);
 cudaFree(U_d);
