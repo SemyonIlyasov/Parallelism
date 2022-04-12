@@ -4,6 +4,7 @@
 #include <cub/cub.cuh>
 #define N 1024
 #define MAX_ITER_NUM 1000000
+#define STEP 100
 __global__ void five_point_model_calc(double* U_d, double* U_d_n, int n)
 {
 	
@@ -80,7 +81,7 @@ size_t temp_storage_bytes = 0;
 
 cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d_diff, d_err, N*N);
 cudaMalloc(&d_temp_storage, temp_storage_bytes);
-
+/*
 while(it < MAX_ITER_NUM && *err > 1e-6)
 {
 	it++;
@@ -101,7 +102,55 @@ while(it < MAX_ITER_NUM && *err > 1e-6)
 	U_d = U_d_n;
 	U_d_n = swap_ptr;	
 }
+*/
 
+it = 0;
+int max_iters_with_graphs = MAX_ITER_NUM / STEP;
+
+cudaStream_t stream;
+cudaStreamCreate(&stream);
+
+bool graphCreated = false;
+cudaGraph_t graph;
+cudaGraphExec_t instance;
+
+while(*err > 1e-6 && it < max_iters_with_graphs)
+{	it ++;
+	if(!graphCreated)
+	{
+		cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal);
+		for(int i = 0; i < 100; i ++)
+		{
+			five_point_model_calc<<<GRID_SIZE,BLOCK_SIZE,0,stream>>>(U_d_n, U_d, N);
+			double* swap_ptr = U_d;
+			U_d = U_d_n;
+			U_d_n = swap_ptr;
+		}
+		cudaStreamEndCapture(stream, &graph);
+		cudaGraphInstantiate(&instance, graph, NULL, NULL, 0);
+
+		graphCreated=true;
+	}
+	cudaGraphLaunch(instance, stream);
+	cudaStreamSynchronize(stream);
+	
+	printf("iter = %d error = %e\n", it*STEP, *err);
+	*err = 0;
+	double* swap_ptr = U_d;
+	U_d = U_d_n;
+	U_d_n = swap_ptr;
+	
+	arr_diff<<<GRID_SIZE, BLOCK_SIZE, 0, stream>>>(U_d_n, U_d, U_d_diff , N);
+	cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, U_d_diff, d_err, N*N, stream);
+	cudaMemcpyAsync(err, d_err,sizeof(double),cudaMemcpyDeviceToHost, stream );
+
+	swap_ptr = U_d;
+	U_d = U_d_n;
+	U_d_n = swap_ptr;
+
+
+
+}
 free(U);
 free(U_n);
 cudaFree(U_d);
