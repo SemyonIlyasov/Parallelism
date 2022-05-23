@@ -60,7 +60,7 @@ __global__ void vecNeg(const double *newA, const double *A, double* ans, int mx_
     }
 }
 
-int main(int argc, char ** argv)
+int main(int argc, char * argv[])
 {
 
     MPI_Status status;
@@ -75,15 +75,16 @@ int main(int argc, char ** argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &local_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &proc_amount);
 
-    cudaError_t err;
-
-    double *tmp, *U_d, *U_n_d, *tmp_d, *max_d;
-
-    void *d_temp_storage;
+    double *tmp = NULL;
+    double *U_d = NULL;
+    double *U_n_d = NULL;
+    double *tmp_d = NULL;
+    double *max_d = NULL;
+    void *d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;
 
-    //cudaSetDevice(local_rank % NUM_DEVICES);
-    setDevice(local_rank);
+    cudaSetDevice(local_rank % NUM_DEVICES);
+    // setDevice(local_rank);
 
     int isLastProcFlag = (local_rank / (proc_amount - 1));
     int isFirstProcFrag = (proc_amount - local_rank) / proc_amount;
@@ -97,7 +98,7 @@ int main(int argc, char ** argv)
     // interpolation for different processes
     tmp = (double*)calloc(numElems, sizeof(double));
 
-    double step = (10.0 - 20.0) / ((double)N - 1);
+    double step = (20.0 - 10.0) / ((double)N - 1);
     if (isFirstProcFrag)
     {
         // interpolate upper boarder
@@ -122,7 +123,6 @@ int main(int argc, char ** argv)
         tmp[i * N + 0] = 10.0 + step * ((start/ N) + i);
         tmp[i * N + (N - 1)] = 20.0 + step * ((start/ N) + i);
     }
-}
 
     // copying to GPU
     cudaMalloc((void **)&U_d, (numElems + 2 * N) * sizeof(double));
