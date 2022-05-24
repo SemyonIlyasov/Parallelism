@@ -6,12 +6,13 @@
 #include <nccl.h>
 // #define NUM_DEVICES 4
 
-void print_matrix_d(double* dst, int num_rows, int n)
+void print_matrix_d(double* dst, int num_rows, int n,cudaStream_t stream)
 {
     double *a = (double*)calloc(sizeof(double), num_rows * n);
     cudaMemcpy(a, dst, num_rows * n * sizeof(double), cudaMemcpyDeviceToHost);
     for (int i = 0; i < num_rows; ++i)
     {
+        
         for (int j = 0; j < n; ++j)
             printf("%lf ", a[i * n + j]);
         printf("\n");
@@ -51,17 +52,17 @@ __global__ void arr_diff(double* U_n_d, double* U_d, double* U_d_diff, int n, in
 int main(int argc, char * argv[])
 {
 
+    
     int local_rank, proc_amount;
 
     MPI_Init(&argc, &argv);
 
     double min_err = 0.000001;
     int N = 128;
-    int maxi = 50000;
+    int maxi = 100000;
 
     MPI_Comm_rank(MPI_COMM_WORLD, &local_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &proc_amount);
-
     ncclUniqueId nccl_id;
     
     double *tmp = NULL;
@@ -72,10 +73,10 @@ int main(int argc, char * argv[])
     void *d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;
 
-    cudaStream_t stream;
-    cudaStreamCreate(&stream);
+    //cudaStream_t stream;
+    //cudaStreamCreate(&stream);
 
-   //  cudaSetDevice(local_rank % proc_amount);
+    //cudaSetDevice(local_rank % proc_amount);
 
     int isLastProcFlag = (local_rank / (proc_amount - 1));
     int isFirstProcFlag = (proc_amount - local_rank) / proc_amount;
@@ -86,6 +87,9 @@ int main(int argc, char * argv[])
     MPI_Bcast(&nccl_id, sizeof(nccl_id), MPI_BYTE, 0, MPI_COMM_WORLD);
 
     cudaSetDevice(local_rank % proc_amount);
+
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
 
     int start = ((N / proc_amount) * local_rank) * N;
     int end = (N / proc_amount * (local_rank + 1) + (N % proc_amount) * isLastProcFlag) * N; // [start; end)
@@ -122,7 +126,6 @@ int main(int argc, char * argv[])
         tmp[i * N + 0] = 10.0 + step * ((start/ N) + i);
         tmp[i * N + (N - 1)] = 20.0 + step * ((start/ N) + i);
     }
-
     // copying to GPU
     cudaMalloc((void **)&U_d, (num_elems + 2 * N) * sizeof(double));
     cudaMalloc((void **)&U_n_d, (num_elems + 2 * N) * sizeof(double));
@@ -134,7 +137,7 @@ int main(int argc, char * argv[])
     cudaMemcpyAsync(U_n_d + N, tmp, num_elems * sizeof(double), cudaMemcpyHostToDevice, stream);
 
     free(tmp);
-
+    
     dim3 GS = dim3(16, 16);
     dim3 BS = dim3(ceil(N / (double)GS.x), ceil((num_rows + 2) / (double)GS.y));
 
@@ -160,11 +163,10 @@ int main(int argc, char * argv[])
 
     ncclComm_t com;
     ncclCommInitRank(&com, proc_amount, nccl_id, local_rank);
-
+    printf("start cycle... Rank %d\n", local_rank);
     while (error > min_err && it < maxi)
     {
         it += 1;
-
         ncclGroupStart();
         ncclSend(U_d + N, N, ncclDouble, bottomProcess, com, stream);
         ncclSend(U_d + num_elems, N, ncclDouble, topProcess, com, stream);
@@ -178,10 +180,8 @@ int main(int argc, char * argv[])
         {
             arr_diff<<<BS, GS, 0, stream>>>(U_n_d, U_d, tmp_d, N, y_start, y_end);
             cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, tmp_d, max_d, num_rows * N, stream);
-
             ncclAllReduce(max_d, err_d, 1, ncclDouble, ncclMax, com, stream);
             cudaMemcpyAsync(&error, err_d, sizeof(double), cudaMemcpyDeviceToHost, stream);
-            
             if (isFirstProcFlag)
                printf("iter: %d error: %e\n", it, error);
         }
@@ -189,6 +189,7 @@ int main(int argc, char * argv[])
         double *tmp = U_d;
         U_d = U_n_d;
         U_n_d = tmp;
+        //cudaStreamSynchronize(stream);
     }
     //if(isLastProcFlag)
     //printf("rank: %d\n", local_rank);
