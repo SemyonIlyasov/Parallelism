@@ -58,8 +58,8 @@ int main(int argc, char * argv[])
     MPI_Init(&argc, &argv);
 
     double min_err = 0.000001;
-    int N = 128;
-    int maxi = 100000;
+    int N = 1024;
+    int maxi = 10000;
 
     MPI_Comm_rank(MPI_COMM_WORLD, &local_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &proc_amount);
@@ -77,10 +77,17 @@ int main(int argc, char * argv[])
     //cudaStreamCreate(&stream);
 
     //cudaSetDevice(local_rank % proc_amount);
-
-    int isLastProcFlag = (local_rank / (proc_amount - 1));
-    int isFirstProcFlag = (proc_amount - local_rank) / proc_amount;
-
+    int isLastProcFlag = -1;
+    int isFirstProcFlag = -1;
+    if(proc_amount > 1){	
+        isLastProcFlag = (local_rank / (proc_amount - 1));
+        isFirstProcFlag = (proc_amount - local_rank) / proc_amount;
+    }
+    if(proc_amount == 1)
+    {
+        isLastProcFlag = 1;
+        isFirstProcFlag = 1;
+    }
     if(isFirstProcFlag)
 	ncclGetUniqueId(&nccl_id);
 	 
@@ -167,6 +174,8 @@ int main(int argc, char * argv[])
     while (error > min_err && it < maxi)
     {
         it += 1;
+        if(proc_amount > 1)
+        {
         ncclGroupStart();
         ncclSend(U_d + N, N, ncclDouble, bottomProcess, com, stream);
         ncclSend(U_d + num_elems, N, ncclDouble, topProcess, com, stream);
@@ -174,13 +183,15 @@ int main(int argc, char * argv[])
         ncclRecv(U_d + num_elems + N, N, ncclDouble, topProcess, com, stream);
         ncclRecv(U_d, N, ncclDouble, bottomProcess, com, stream);
         ncclGroupEnd();
+        }
 
         five_point_model_calc<<<BS, GS,0, stream>>>(U_n_d, U_d, N, y_start, y_end);
         if (it % 100 == 0)
         {
             arr_diff<<<BS, GS, 0, stream>>>(U_n_d, U_d, tmp_d, N, y_start, y_end);
             cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, tmp_d, max_d, num_rows * N, stream);
-            ncclAllReduce(max_d, err_d, 1, ncclDouble, ncclMax, com, stream);
+            //if(proc_amount > 1)
+                ncclAllReduce(max_d, err_d, 1, ncclDouble, ncclMax, com, stream);
             cudaMemcpyAsync(&error, err_d, sizeof(double), cudaMemcpyDeviceToHost, stream);
             if (isFirstProcFlag)
                printf("iter: %d error: %e\n", it, error);
