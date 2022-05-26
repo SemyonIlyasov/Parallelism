@@ -56,8 +56,8 @@ int main(int argc, char * argv[])
     MPI_Init(&argc, &argv);
 
     double min_error = 0.000001;
-    int N = 128;
-    int iter_max = 50000;
+    int N = 1024;
+    int iter_max = 1000;
 
     MPI_Comm_rank(MPI_COMM_WORLD, &local_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &proc_amount);
@@ -72,10 +72,15 @@ int main(int argc, char * argv[])
 
     cudaSetDevice(local_rank % proc_amount);
     // setDevice(local_rank);
-
-    int isLastProcFlag = (local_rank / (proc_amount - 1));
-    int isFirstProcFlag = (proc_amount - local_rank) / proc_amount;
-
+    int isLastProcFlag;
+    int isFirstProcFlag;
+    if(proc_amount > 1){
+    isLastProcFlag = (local_rank / (proc_amount - 1));
+    isFirstProcFlag = (proc_amount - local_rank) / proc_amount;
+    } else{
+    isLastProcFlag = 1;
+    isFirstProcFlag = 1;
+    }
     int start = ((N / proc_amount) * local_rank) * N;
     int end = (N / proc_amount * (local_rank + 1) + (N % proc_amount) * isLastProcFlag) * N; // [start; end)
 
@@ -148,7 +153,7 @@ int main(int argc, char * argv[])
     while (error > min_error && iter < iter_max)
     {
         iter += 1;
-
+        if(proc_amount > 1){
         MPI_Sendrecv(U_d + N, N, MPI_DOUBLE, bottomProcess, local_rank,
                      U_d + numElems + N, N, MPI_DOUBLE, topProcess, topProcess,
                      MPI_COMM_WORLD, &status);
@@ -156,7 +161,7 @@ int main(int argc, char * argv[])
         MPI_Sendrecv(U_d + numElems, N, MPI_DOUBLE, topProcess, local_rank,
                      U_d, N, MPI_DOUBLE, bottomProcess, bottomProcess,
                      MPI_COMM_WORLD, &status);
-
+        }
         five_point_model_calc<<<BS, GS>>>(U_n_d, U_d, N, y_start, y_end);
         if (iter % 100 == 0)
         {
@@ -164,7 +169,8 @@ int main(int argc, char * argv[])
             cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, tmp_d, max_d, numRows * N);
 
             cudaMemcpy(&local_error, max_d, sizeof(double), cudaMemcpyDeviceToHost);
-            MPI_Allreduce(&local_error, &error, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+            //if(proc_amount > 1)
+	    MPI_Allreduce(&local_error, &error, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
             if (isFirstProcFlag)
                 printf("iter: %d error: %e\n", iter, error);
