@@ -1,7 +1,7 @@
 # Parallelism
 time, ms
 maxi = 1000000
-time of program working
+time of program working (s)
 
    //mpi_cuda_nccl.cu\\
 
