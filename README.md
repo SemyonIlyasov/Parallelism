@@ -1,7 +1,7 @@
 # Parallelism
 time, ms
-maxi = 10000
-time spent in main calculation cycle
+maxi = 1000000
+time of program working
 
    //mpi_cuda_nccl.cu\\
 
@@ -44,9 +44,9 @@ Matrix_size = 256
 
 Matrix_size = 512
 
-  - 1 -
-  - 2 -
-  - 4 - 
+  - 1 - 1.783
+  - 2 - 15.903
+  - 4 - 16.801
   - 
 Matrix_size = 1024
 
